@@ -1,0 +1,86 @@
+version: '2'
+services:
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: openldap
+    environment:
+      LDAP_LOG_LEVEL: "256"
+      LDAP_ORGANISATION: "Example Inc."
+      LDAP_DOMAIN: "example.org"
+      LDAP_BASE_DN: ""
+      LDAP_ADMIN_PASSWORD: "admin"
+      LDAP_CONFIG_PASSWORD: "config"
+      LDAP_READONLY_USER: "false"
+      #LDAP_READONLY_USER_USERNAME: "readonly"
+      #LDAP_READONLY_USER_PASSWORD: "readonly"
+      LDAP_RFC2307BIS_SCHEMA: "false"
+      LDAP_BACKEND: "mdb"
+      LDAP_TLS: "true"
+      LDAP_TLS_CRT_FILENAME: "ldap.crt"
+      LDAP_TLS_KEY_FILENAME: "ldap.key"
+      LDAP_TLS_CA_CRT_FILENAME: "ca.crt"
+      LDAP_TLS_ENFORCE: "false"
+      LDAP_TLS_CIPHER_SUITE: "SECURE256:-VERS-SSL3.0"
+      LDAP_TLS_VERIFY_CLIENT: "demand"
+      LDAP_REPLICATION: "false"
+      #LDAP_REPLICATION_CONFIG_SYNCPROV: 'binddn="cn=admin,cn=config" bindmethod=simple credentials="$$LDAP_CONFIG_PASSWORD" searchbase="cn=config" type=refreshAndPersist retry="60 +" timeout=1 starttls=critical'
+      #LDAP_REPLICATION_DB_SYNCPROV: 'binddn="cn=admin,$$LDAP_BASE_DN" bindmethod=simple credentials="$$LDAP_ADMIN_PASSWORD" searchbase="$$LDAP_BASE_DN" type=refreshAndPersist interval=00:00:00:10 retry="60 +" timeout=1 starttls=critical'
+      #LDAP_REPLICATION_HOSTS: "#PYTHON2BASH:['ldap://ldap.example.org','ldap://ldap2.example.org']"
+      KEEP_EXISTING_CONFIG: "false"
+      LDAP_REMOVE_CONFIG_AFTER_SETUP: "false"
+      LDAP_SSL_HELPER_PREFIX: "ldap"
+    tty: true
+    stdin_open: true
+    volumes:
+      - /var/lib/ldap
+      - /etc/ldap/slapd.d
+      - /container/service/slapd/assets/certs/
+      - ./bootstrap.ldif:/container/service/slapd/assets/config/bootstrap/ldif/50-bootstrap.ldif
+    ports:
+      - "389:389"
+      - "636:636"
+    # For replication to work correctly, domainname and hostname must be
+    # set correctly so that "hostname"."domainname" equates to the
+#    # fully-qualified domain name for the host.
+#    domainname: "example.org"
+    hostname: "ldap-server"
+  phpldapadmin:
+    image: osixia/phpldapadmin:latest
+    container_name: phpldapadmin
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: "openldap"
+      PHPLDAPADMIN_HTTPS: "false"
+    ports:
+      - "8080:80"
+    depends_on:
+      - openldap
+  semaphore:
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    image: semaphoreui/semaphore:latest
+    environment:
+      SEMAPHORE_BOLT_HOST: "semaphore.bolt"
+      SEMAPHORE_DB_DIALECT: bolt
+      SEMAPHORE_DB: semaphore
+      SEMAPHORE_PLAYBOOK_PATH: "/tmp/semaphore/"
+      SEMAPHORE_ADMIN_PASSWORD: P@ssw0rd
+      SEMAPHORE_ADMIN_NAME: admin
+      SEMAPHORE_ADMIN_EMAIL: admin@localhost
+      SEMAPHORE_ADMIN: admin
+      ANSIBLE_HOST_KEY_CHECKING: "false"
+      SEMAPHORE_ACCESS_KEY_ENCRYPTION: "gs72mPntFAT23s9qK0pQ0rKtfidlexiMjYCH9gWKhTU="
+      SEMAPHORE_LDAP_ACTIVATED: 'yes' # if you wish to use ldap, set to: 'yes' 
+      SEMAPHORE_LDAP_HOST: "openldap"
+      SEMAPHORE_LDAP_PORT: "389"
+      SEMAPHORE_LDAP_NEEDTLS: "no"
+      SEMAPHORE_LDAP_DN_BIND: 'cn=admin,dc=example,dc=org'
+      #SEMAPHORE_LDAP_DN_BIND: 'cn=semaphore svc,ou=Domain Users,dc=example,dc=org'
+      SEMAPHORE_LDAP_PASSWORD: "admin"
+      SEMAPHORE_LDAP_DN_SEARCH: "ou=Users,dc=example,dc=org"
+      #SEMAPHORE_LDAP_SEARCH_FILTER: '(&(uid=%s)(memberOf=cn=DomainUsers,ou=Groups,dc=example,dc=org))'
+      SEMAPHORE_LDAP_SEARCH_FILTER: '(uid=%s)'
+      SEMAPHORE_LDAP_MAPPING_DN: "dn"
+      SEMAPHORE_LDAP_MAPPING_FULLNAME: "cn"
+      SEMAPHORE_LDAP_MAPPING_USERNAME: "uid"
+      SEMAPHORE_LDAP_MAPPING_EMAIL: "mail"
